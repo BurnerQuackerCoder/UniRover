@@ -1,8 +1,6 @@
-import os
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -18,14 +16,14 @@ def generate_launch_description():
 
     map_file_arg = DeclareLaunchArgument(
         "map_file",
-        default_value=os.path.join(FindPackageShare("tutorial_pkg"), "maps", "map.yaml"),
+        default_value=PathJoinSubstitution([FindPackageShare("tutorial_pkg"), "maps", "map.yaml"]),
         description="Full path to the yaml map file",
     )
 
     amcl_params_file_arg = DeclareLaunchArgument(
         "amcl_params_file",
-        default_value=os.path.join(
-            FindPackageShare("tutorial_pkg"), "config", "amcl.yaml"
+        default_value=PathJoinSubstitution(
+            [FindPackageShare("tutorial_pkg"), "config", "amcl.yaml"]
         ),
         description="Full path to the ROS2 parameters file to use for the amcl node",
     )
@@ -55,13 +53,13 @@ def generate_launch_description():
         ],
     )
 
-    ld = LaunchDescription()
-
-    ld.add_action(use_sim_time_arg)
-    ld.add_action(amcl_params_file_arg)
-    ld.add_action(map_file_arg)
-    ld.add_action(map_server_node)
-    ld.add_action(amcl_node)
-    ld.add_action(nav_manager)
-
-    return ld
+    return LaunchDescription(
+        [
+            use_sim_time_arg,
+            amcl_params_file_arg,
+            map_file_arg,
+            map_server_node,
+            amcl_node,
+            nav_manager,
+        ]
+    )
