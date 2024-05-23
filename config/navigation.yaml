@@ -62,7 +62,7 @@ behavior_server:
     local_footprint_topic: local_costmap/published_footprint
     global_costmap_topic: global_costmap/costmap_raw
     global_footprint_topic: global_costmap/published_footprint
-    cycle_frequency: 10.0
+    cycle_frequency: 5.0
     behavior_plugins:
       ["spin", "backup", "drive_on_heading", "wait", "assisted_teleop"]
     spin:
@@ -89,14 +89,17 @@ bt_navigator:
     use_sim_time: True
     global_frame: map
     robot_base_frame: base_link
-    odom_topic: /odometry/filtered
-    default_bt_xml_filename: "navigate_w_replanning_and_recovery.xml"
+    odom_topic: odometry/filtered
+
     bt_loop_duration: 10
     default_server_timeout: 20
-
-    enable_groot_monitoring: False
-    # groot_zmq_publisher_port: 1666
-    # groot_zmq_server_port: 1667
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    navigators: [navigate_to_pose, navigate_through_poses]
+    navigate_to_pose:
+      plugin: nav2_bt_navigator/NavigateToPoseNavigator
+    navigate_through_poses:
+      plugin: nav2_bt_navigator/NavigateThroughPosesNavigator
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_follow_path_action_bt_node
@@ -131,7 +134,7 @@ controller_server:
   ros__parameters:
     use_sim_time: True
 
-    controller_frequency: 10.0
+    controller_frequency: 5.0
     min_x_velocity_threshold: 0.03
     min_y_velocity_threshold: 0.03
     min_theta_velocity_threshold: 0.3
@@ -337,7 +340,7 @@ velocity_smoother:
   ros__parameters:
     use_sim_time: True
 
-    smoothing_frequency: 20.0
+    smoothing_frequency: 5.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
     max_velocity: [0.5, 0.0, 1.5]

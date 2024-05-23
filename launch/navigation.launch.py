@@ -1,17 +1,17 @@
 import os
 
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    tutorial_dir = get_package_share_directory('tutorial_pkg')
+    tutorial_dir = FindPackageShare('tutorial_pkg')
     nav2_bringup_launch_file_dir = os.path.join(
-        get_package_share_directory('nav2_bringup'), 'launch', 'bringup_launch.py'
+        FindPackageShare('nav2_bringup'), 'launch', 'bringup_launch.py'
     )
 
     map_yaml_file = LaunchConfiguration('map')
@@ -43,21 +43,6 @@ def generate_launch_description():
         }.items(),
     )
 
-    rviz_config_dir = os.path.join(
-        tutorial_dir,
-        'rviz',
-        'navigation.rviz',
-    )
-
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', rviz_config_dir],
-        parameters=[{'use_sim_time': use_sim_time}],
-        output='screen',
-    )
-
     ld = LaunchDescription()
 
     ld.add_action(declare_map_yaml_cmd)
@@ -65,6 +50,5 @@ def generate_launch_description():
     ld.add_action(declare_use_sim_time_cmd)
 
     ld.add_action(nav2_bringup_launch)
-    ld.add_action(rviz_node)
 
     return ld
