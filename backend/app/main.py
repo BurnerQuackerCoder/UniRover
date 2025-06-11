@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     print("Server starting up...")
     # Load room coordinates from JSON file
     global room_coordinates
-    with open("backend/app/room_coordinates.json", "r") as f:
+    with open("/home/po/Desktop/Jay_MT/Code/UniRover/backend/app/room_coordinates.json", "r") as f:
         room_coordinates = json.load(f)
     print(f"Loaded {len(room_coordinates)} room coordinates.")
     
@@ -192,6 +192,19 @@ async def generic_exception_handler(request, exc):
         content={"message": "An unexpected error occurred on the server."},
     )
 
+# Add this temporary endpoint for testing
+@app.get("/test/send_action_goal", include_in_schema=False)
+async def test_send_action_goal():
+    from .ros import ros_client
+    if not ros_client._connection:
+        raise HTTPException(status_code=503, detail="Not connected to ROS.")
+
+    test_coords = {"x": 1.0, "y": -1.0, "w": 1.0}
+    try:
+        goal_id = await ros_client.send_goal_action(test_coords)
+        return {"status": "success", "detail": f"Sent action goal {goal_id} to robot."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send goal: {e}")
 
 # --- API Endpoints ---
 @app.get("/", tags=["Root"])

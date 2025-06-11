@@ -2,9 +2,9 @@ import asyncio
 import websockets
 import json
 import logging
+import uuid
 from .core.config import settings
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -12,158 +12,140 @@ class ROSClient:
     def __init__(self):
         self._connection = None
         self._is_running = False
-        self.goal_result_event = asyncio.Event()
-        self.last_goal_result = None
         self.current_battery = -1.0
+        # Dictionary to hold events for active goals, keyed by goal_id
+        self.active_goals = {}
 
     async def connect(self):
         """Establishes and maintains a connection to rosbridge."""
         self._is_running = True
-        while self._is_running:
-            try:
-                logger.info(f"Connecting to ROS at {settings.ROSBRIDGE_URL}...")
-                self._connection = await websockets.connect(settings.ROSBRIDGE_URL)
-                logger.info("Successfully connected to ROS.")
-                # After connecting, start listening and subscribe to topics
-                asyncio.create_task(self._listener())
-                await self._subscribe_to_topics()
-                # Keep the connection alive
-                await self._connection.wait_closed()
-            except (websockets.exceptions.ConnectionClosedError, ConnectionRefusedError) as e:
-                logger.error(f"ROS connection error: {e}. Retrying in 5 seconds...")
-                self._connection = None
-                await asyncio.sleep(5)
-            except Exception as e:
-                logger.error(f"An unexpected error occurred in ROSClient.connect: {e}")
-                await asyncio.sleep(5)
+        logger.info(f"Connecting to ROS at {settings.ROSBRIDGE_URL}...")
+        try:
+            # Connect with a timeout
+            self._connection = await asyncio.wait_for(websockets.connect(settings.ROSBRIDGE_URL), timeout=10.0)
+            logger.info("Successfully connected to ROS.")
+            # Start the background listener task
+            asyncio.create_task(self._listener())
+            await self._subscribe_to_topics()
+        except Exception as e:
+            logger.error(f"Failed to connect or subscribe: {e}")
+            self._connection = None
 
     async def disconnect(self):
         """Closes the WebSocket connection."""
-        self._is_running = False
         if self._connection:
             logger.info("Disconnecting from ROS...")
             await self._connection.close()
-            self._connection = None
-            logger.info("Disconnected from ROS.")
+        self._connection = None
 
     async def _listener(self):
-        """Listens for incoming messages from rosbridge."""
+        """Listens for incoming messages from rosbridge and routes them."""
+        logger.info("ROS listener started.")
         try:
             async for message in self._connection:
                 data = json.loads(message)
                 op = data.get("op")
-                topic = data.get("topic")
 
                 if op == "publish":
-                    if topic == "/move_base/result":
-                        self._handle_goal_result(data['msg'])
-                    elif topic == "/battery_state": # NOTE: Change topic if yours is different
+                    topic = data.get("topic")
+                    if topic == settings.ROS_BATTERY_TOPIC:
                         self._handle_battery_state(data['msg'])
+                elif op == "result": # This is for the robust Action client
+                    self._handle_action_result(data)
         except websockets.exceptions.ConnectionClosed:
-            logger.info("Listener task stopped: connection closed.")
+            logger.warning("ROS connection closed. Listener stopped.")
+            self._connection = None
         except Exception as e:
-            logger.error(f"An error occurred in the listener task: {e}")
+            logger.error(f"Error in ROS listener: {e}")
+            self._connection = None
 
-    def _handle_goal_result(self, msg):
-        """Handles the result message from the move_base action."""
-        status = msg['status']['status']
-        # Status 3 = SUCCEEDED, Other statuses = various failures
-        self.last_goal_result = {"success": status == 3, "status_code": status}
-        logger.info(f"Received goal result: {self.last_goal_result}")
-        self.goal_result_event.set() # Notify the waiting task that a result is in
+    def _handle_action_result(self, result_msg):
+        """Handles the result message from an action call."""
+        goal_id = result_msg.get("id")
+        if goal_id in self.active_goals:
+            event, _ = self.active_goals[goal_id]
+            status = result_msg.get("values", {}).get("status", {}).get("status")
+            logger.info(f"Goal {goal_id} completed with status: {status}")
+            # Status 3 is SUCCEEDED in move_base actions
+            self.active_goals[goal_id] = (event, {"success": status == 3})
+            event.set() # Signal that the result has arrived
 
     def _handle_battery_state(self, msg):
-        """Handles battery state updates."""
         self.current_battery = msg.get('percentage', -1.0) * 100
-        # logger.info(f"Received battery update: {self.current_battery:.2f}%")
 
     async def _send_json(self, data):
-        """Sends a JSON object over the WebSocket if connected."""
         if self._connection:
             await self._connection.send(json.dumps(data))
         else:
-            logger.warning("Cannot send message, not connected to ROS.")
+            raise ConnectionError("Not connected to ROS.")
 
     async def _subscribe_to_topics(self):
-        """Subscribes to essential ROS topics."""
-        logger.info("Subscribing to ROS topics...")
-        # Subscribe to move_base result
-        subscribe_goal_result = {
-            "op": "subscribe",
-            "topic": "/move_base/result",
-            "type": "move_base_msgs/MoveBaseActionResult"
-        }
-        await self._send_json(subscribe_goal_result)
-
-        # Subscribe to battery state
+        """Subscribes to battery state topic."""
         subscribe_battery = {
             "op": "subscribe",
-            "topic": "/battery_state", # NOTE: Change this topic name if yours is different
+            "topic": settings.ROS_BATTERY_TOPIC,
             "type": "sensor_msgs/BatteryState"
         }
         await self._send_json(subscribe_battery)
+        logger.info("Subscribed to {settings.ROS_BATTERY_TOPIC}.")
 
-    async def send_goal(self, goal_pose: dict):
-        """Sends a navigation goal to move_base."""
-        if not self._connection:
-            logger.error("Cannot send goal, not connected.")
-            return False
-            
-        logger.info(f"Sending goal to pose: {goal_pose}")
-        self.goal_result_event.clear()  # Reset the event before sending a new goal
-        self.last_goal_result = None
-
-        goal_msg = {
-            "op": "publish",
-            "topic": "/move_base/simple/goal", # Using simple goal for this example
-            "msg": {
-                "header": {"frame_id": "map"},
-                "pose": {
-                    "position": {"x": goal_pose['x'], "y": goal_pose['y'], "z": 0.0},
-                    "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": goal_pose['w']}
+    async def send_goal_action(self, goal_pose: dict):
+        """Sends a navigation goal as a ROS Action and returns its ID."""
+        goal_id = f"goal_{uuid.uuid4()}"
+        logger.info(f"Sending action goal '{goal_id}' to pose: {goal_pose}")
+        
+        action_goal_msg = {
+            "op": "call_service",
+            "service": "/move_base/goal", # This is how rosbridge handles action goals
+            "id": goal_id,
+            "args": {
+                "goal": {
+                    "target_pose": {
+                        "header": {"frame_id": "map"},
+                        "pose": {
+                            "position": {"x": goal_pose['x'], "y": goal_pose['y'], "z": 0.0},
+                            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": goal_pose['w']}
+                        }
+                    }
                 }
             }
         }
-        await self._send_json(goal_msg)
-        return True
-
-    async def wait_for_goal_result(self, timeout=60.0):
-        """Waits for the goal result event to be set."""
-        try:
-            await asyncio.wait_for(self.goal_result_event.wait(), timeout=timeout)
-            return self.last_goal_result
-        except asyncio.TimeoutError:
-            logger.warning("Timeout waiting for goal result.")
-            return {"success": False, "status_code": -1, "error": "timeout"}
         
-    async def cancel_all_goals(self):
-        """Publishes a message to cancel all active move_base goals."""
-        if not self._connection:
-            logger.error("Cannot cancel goals, not connected.")
-            return
+        # Create an event to wait for the result of this specific goal
+        event = asyncio.Event()
+        self.active_goals[goal_id] = (event, None) # Store the event and placeholder for the result
+        
+        await self._send_json(action_goal_msg)
+        return goal_id
 
-        logger.info("Sending cancel all goals command.")
-        # The message to cancel goals is an empty message to the /move_base/cancel topic.
-        # Note: For more advanced control, rosbridge's actionlib support would be used,
-        # but this is a simple and effective way to stop the robot's current task.
-        cancel_msg = {
-            "op": "publish",
-            "topic": "/move_base/cancel",
-            "msg": {} # An empty GoalID message cancels all goals
-        }
-        await self._send_json(cancel_msg)
+    async def wait_for_goal_result(self, goal_id: str, timeout=120.0):
+        """Waits for a specific goal's result."""
+        if goal_id not in self.active_goals:
+            return {"success": False, "error": "invalid goal_id"}
+            
+        event, _ = self.active_goals[goal_id]
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+            _, result = self.active_goals.pop(goal_id) # Get result and clean up
+            return result
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout waiting for result of goal {goal_id}.")
+            self.active_goals.pop(goal_id, None) # Clean up
+            return {"success": False, "error": "timeout"}
+
+    async def cancel_all_goals(self):
+        # Implementation for canceling goals can be added here if needed
+        logger.info("Cancel goals functionality to be implemented.")
+        pass
 
     async def return_to_base(self):
-        """Sends the robot to its predefined base station."""
-        # This reuses the send_goal method with the 'Base Station' coordinates.
-        # We assume 'Base Station' exists in the coordinates map.
-        from .scheduler import scheduler # Lazy import to avoid circular dependency
+        # This can be refactored to use the action system as well
+        from .scheduler import scheduler
         base_coords = scheduler.room_coordinates.get("Base Station")
         if base_coords:
-            logger.info("Sending robot to Base Station.")
-            await self.send_goal(base_coords)
+            logger.info("Sending robot to Base Station via action.")
+            await self.send_goal_action(base_coords)
         else:
             logger.error("Could not return to base: 'Base Station' coordinates not found.")
 
-# A single instance of the ROSClient to be used throughout the application
 ros_client = ROSClient()

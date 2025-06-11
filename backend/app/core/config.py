@@ -16,12 +16,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8')
 
     # ROS Integration Settings
-    ROSBRIDGE_URL: str = "ws://<YOUR_ROS_BOT_IP>:9090" # IMPORTANT: Change this IP
+    ROSBRIDGE_URL: str = "ws://192.168.0.151:9090" # IMPORTANT: Change this IP
+    ROS_BATTERY_TOPIC: str = "/battery"
     BATTERY_MIN_LEVEL: float = 20.0 # Minimum battery percentage to start a tour
     DELIVERY_BATCH_SIZE: int = 3 # Number of pending deliveries to trigger a tour
+    ENFORCE_BATTERY_CHECK: bool = False # << Set to False to disable battery check
 
     # Development Settings
-    SIMULATION_MODE: bool = True # Set to False when you want to use the real robot
+    SIMULATION_MODE: bool = False # Set to False when you want to use the real robot
 
 
 # Create a single instance of the settings to be used throughout the application

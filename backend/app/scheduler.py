@@ -35,8 +35,9 @@ class Scheduler:
                     logger.info("Scheduler checking for pending deliveries...")
                     
                     # 1. Check robot state (battery and connection)
-                    if not ros_client._connection or ros_client.current_battery < settings.BATTERY_MIN_LEVEL:
-                        logger.warning(f"Robot not ready (Connected: {ros_client._connection is not None}, Battery: {ros_client.current_battery}%)")
+                    # This check now respects the ENFORCE_BATTERY_CHECK setting
+                    if settings.ENFORCE_BATTERY_CHECK and (not ros_client._connection or ros_client.current_battery < settings.BATTERY_MIN_LEVEL):
+                        logger.warning(f"Robot not ready (Enforcing Battery Check. Connected: {ros_client._connection is not None}, Battery: {ros_client.current_battery}%)")
                         await asyncio.sleep(30)
                         continue
 
@@ -134,13 +135,19 @@ class Scheduler:
         crud.update_delivery_status_in_db(db, delivery_id=delivery.id, new_status=models.DeliveryStatus.IN_PROGRESS)
         db.close()
         
-        await ros_client.send_goal(coords)
-        result = await ros_client.wait_for_goal_result() # Wait for feedback from ros_client
+        # --- THIS IS THE MODIFIED SECTION ---
+        try:
+            goal_id = await ros_client.send_goal_action(coords)
+            result = await ros_client.wait_for_goal_result(goal_id)
+        except ConnectionError as e:
+            logger.error(f"Cannot execute goal due to connection error: {e}")
+            result = {"success": False} # Treat as failure
+        # --- END OF MODIFIED SECTION ---
 
         if result and result['success']:
             await self.handle_successful_arrival(delivery)
         else:
-            await self.handle_failed_arrival(delivery, reason="Navigation Failed")
+            await self.handle_failed_arrival(delivery, reason="Navigation Failed or Timed Out")
             
     async def handle_successful_arrival(self, delivery: models.Delivery):
         """Handles the logic after the robot successfully arrives at a destination."""
