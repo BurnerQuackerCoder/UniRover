@@ -24,7 +24,7 @@ Base.metadata.create_all(bind=engine)
 room_coordinates = {}
 
 # --- Lifespan Manager ---
-@asynccontextmanager
+'''@asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup Logic ---
     print("Server starting up...")
@@ -43,8 +43,45 @@ async def lifespan(app: FastAPI):
     # --- Shutdown Logic ---
     print("Server shutting down...")
     scheduler.stop()
-    await ros_client.disconnect()
+    await ros_client.disconnect()'''
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    The definitive lifespan manager for the application. It starts all necessary
+    background tasks (ROS client and Scheduler) without blocking the server startup.
+    """
+    print("--- UniRover Server Starting Up ---")
+    
+    # Load room coordinates from the JSON file
+    global room_coordinates
+    with open("app/room_coordinates.json", "r") as f:
+        room_coordinates = json.load(f)
+    print(f"Loaded {len(room_coordinates)} room coordinates.")
+    
+    # Import the client and settings
+    from .ros import ros_client
+    from .core.config import settings
+
+    # Start the ROS client connection process as a background task.
+    # This allows the server to start immediately.
+    if not settings.SIMULATION_MODE:
+        asyncio.create_task(ros_client.connect())
+    else:
+        # Also handle simulation mode startup
+        from .ros import mock_ros_client
+        asyncio.create_task(mock_ros_client.connect())
+
+    # Start the scheduler background task.
+    scheduler.start(room_coords=room_coordinates)
+    
+    print("--- Application startup complete. Server is live. ---")
+    yield
+    
+    # --- Shutdown Logic ---
+    print("--- UniRover Server Shutting Down ---")
+    scheduler.stop()
+    await ros_client.disconnect()
 
 
 app = FastAPI(

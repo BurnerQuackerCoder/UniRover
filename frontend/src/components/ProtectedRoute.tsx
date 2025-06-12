@@ -6,19 +6,29 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ adminOnly = false }: ProtectedRouteProps) => {
-  const { token, user } = useAuth();
+  const { token, user, isLoading } = useAuth();
 
+  // 1. First, wait for the authentication status to be determined.
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // 2. If not loading, check for a valid token.
   if (!token) {
-    // User not logged in, redirect to login
     return <Navigate to="/login" replace />;
   }
 
+  // 3. If it's an admin-only route, check the user's role.
   if (adminOnly && user?.role !== 'admin') {
-    // Logged in user is not admin, redirect to their dashboard
     return <Navigate to="/deliveries" replace />;
   }
-
-  return <Outlet />; // User is authenticated and authorized, render the child route
+  
+  // 4. If all checks pass, render the requested page.
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

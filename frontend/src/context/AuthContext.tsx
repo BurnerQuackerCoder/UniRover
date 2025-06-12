@@ -6,6 +6,7 @@ import axiosClient from '../api/axiosClient';
 interface AuthContextType {
   token: string | null;
   user: { email: string; role: string } | null;
+  isLoading: boolean;
   login: (token: string) => Promise<void>;
   logout: () => void;
 }
@@ -17,31 +18,35 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // <-- Start in loading state
   const navigate = useNavigate();
 
-  const fetchUser = async () => {
-    if (token) {
-      try {
-        const response = await axiosClient.get('/users/me');
-        setUser(response.data);
-      } catch (error) {
-        console.error('Failed to fetch user', error);
-        logout(); // Token is invalid, so log out
-      }
-    }
-  };
   
   // Fetch user data when token changes
   useEffect(() => {
-    if (token) {
-        fetchUser();
-    }
+    const fetchUser = async () => {
+      if (token) {
+        try {
+          const response = await axiosClient.get('/users/me');
+          setUser(response.data);
+        } catch (error) {
+          console.error('Failed to fetch user, token might be invalid.', error);
+          // Token is bad, so log out
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      setIsLoading(false); // <-- Set loading to false after trying
+    };
+
+    fetchUser();
   }, [token]);
 
   const login = async (newToken: string) => {
+    setIsLoading(true);
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    await fetchUser(); // Fetch user right after login
     navigate('/deliveries');
   };
 
@@ -53,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
+    <AuthContext.Provider value={{ token, user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
