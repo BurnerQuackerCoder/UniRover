@@ -1,5 +1,8 @@
 import json
 import asyncio
+import websockets
+import logging
+
 from contextlib import asynccontextmanager
 #from .ros_client import ros_client # Real_mode
 from .ros import ros_client # Simulation_mode
@@ -8,13 +11,17 @@ from fastapi import FastAPI, HTTPException, status, APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from .database import engine, Base
+from .core.config import settings
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
-from .scheduler import scheduler, pickup_confirmation_events
+from fastapi import WebSocket, WebSocketDisconnect
 
+from .scheduler import scheduler, pickup_confirmation_events
 from . import crud, schemas, models, auth, dependencies
 from .database import engine, Base, get_db
 
+
+logger = logging.getLogger(__name__)
 # This command creates all the database tables defined in models.py
 # In a production environment with migrations, you would use Alembic instead.
 Base.metadata.create_all(bind=engine)
@@ -228,6 +235,43 @@ async def generic_exception_handler(request, exc):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"message": "An unexpected error occurred on the server."},
     )
+
+# --- WebSocket Proxy Endpoint ---
+@app.websocket("/ws/ros")
+async def websocket_proxy(frontend_ws: WebSocket):
+    """
+    This endpoint acts as a WebSocket proxy. It accepts a connection from the
+    frontend, creates its own connection to the rosbridge server, and then
+    forwards messages between the two in both directions.
+    """
+    await frontend_ws.accept()
+    
+    rosbridge_url = settings.ROSBRIDGE_URL
+    
+    try:
+        # Establish a connection from the backend to the rosbridge server
+        async with websockets.connect(rosbridge_url) as ros_ws:
+            logger.info("WebSocket proxy connected to rosbridge.")
+            
+            # Task to forward messages from frontend -> ROS
+            async def forward_to_ros():
+                while True:
+                    message = await frontend_ws.receive_text()
+                    await ros_ws.send(message)
+
+            # Task to forward messages from ROS -> frontend
+            async def forward_to_frontend():
+                while True:
+                    message = await ros_ws.recv()
+                    await frontend_ws.send_text(message)
+
+            # Run both forwarding tasks concurrently
+            await asyncio.gather(forward_to_ros(), forward_to_frontend())
+
+    except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed) as e:
+        logger.info(f"WebSocket proxy disconnected: {e}")
+    except Exception as e:
+        logger.error(f"Error in WebSocket proxy: {e}", exc_info=True)
 
 # temporary endpoint for testing
 @app.get("/test/send_action_goal", include_in_schema=False)

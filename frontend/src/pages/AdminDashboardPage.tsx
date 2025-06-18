@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axiosClient from '../api/axiosClient';
+import LiveMap from '../components/LiveMap';
 
 interface AdminDelivery {
   id: number;
@@ -64,6 +65,8 @@ const AdminDashboardPage = () => {
           EMERGENCY: RETURN TO BASE
         </button>
       </div>
+      <LiveMap />
+      
 
       <div className="p-6 bg-white rounded-lg shadow-md overflow-x-auto">
         {error && <p className="text-red-500">{error}</p>}

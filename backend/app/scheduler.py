@@ -60,14 +60,31 @@ class Scheduler:
         
         db: Session = SessionLocal()
         try:
-            valid_deliveries = [d for d in deliveries if d.destination in self.room_coordinates]
-            # ... (rest of the method is the same)
+            valid_deliveries = []
+            for d in deliveries:
+                if d.destination in self.room_coordinates:
+                    valid_deliveries.append(d)
+                else:
+                    logger.error(f"Destination '{d.destination}' for delivery #{d.id} not found in coordinates map. Marking as Failed.")
+                    crud.update_delivery_status_in_db(db, delivery_id=d.id, new_status=models.DeliveryStatus.FAILED)
+            
+            if not valid_deliveries:
+                logger.warning("No valid deliveries to create a tour. Aborting tour creation.")
+                self.is_executing_tour = False
+                return
+
+
+            logger.info(f"Optimizing path for {len(valid_deliveries)} valid deliveries.")
             locations = [d.destination for d in valid_deliveries]
             all_stops = ["Base Station"] + locations
             distance_matrix = np.array([[np.linalg.norm(np.array([self.room_coordinates[p1]['x'], self.room_coordinates[p1]['y']]) - np.array([self.room_coordinates[p2]['x'], self.room_coordinates[p2]['y']])) for p2 in all_stops] for p1 in all_stops])
             permutation, _ = solve_tsp_dynamic_programming(distance_matrix)
             self.current_tour = [valid_deliveries[all_stops.index(all_stops[i]) - 1] for i in permutation if all_stops[i] != "Base Station"]
             
+            route_str = ' - '.join([d.destination for d in self.current_tour])
+            logger.info(f"Optimized route: {route_str}")
+
+
             for delivery in self.current_tour:
                 crud.update_delivery_status_in_db(db, delivery_id=delivery.id, new_status=models.DeliveryStatus.SCHEDULED)
 
@@ -99,6 +116,8 @@ class Scheduler:
         db: Session = SessionLocal()
         crud.update_delivery_status_in_db(db, delivery_id=delivery.id, new_status=models.DeliveryStatus.IN_PROGRESS)
         db.close()
+
+        result = None
         
         try:
             goal_id = await ros_client.send_goal_action(coords)
@@ -113,11 +132,12 @@ class Scheduler:
 
         # --- THIS IS THE NEW LOGGING SECTION ---
         if result and result.get('success'):
-            logger.info(f"✅ Goal for delivery #{delivery.id} to '{delivery.destination}' reached successfully.")
+            logger.info(f"✅ SUCCESS: Delivery #{delivery.id} (Item: '{delivery.item}') to destination '{delivery.destination}' was successful.")
             await self.handle_successful_arrival(delivery)
         else:
-            logger.error(f"❌ Goal for delivery #{delivery.id} to '{delivery.destination}' failed.")
-            await self.handle_failed_arrival(delivery, reason="Navigation Failed or Timed Out")
+            reason = result.get("error", "Navigation Failed") if result else "Connection Error"
+            logger.error(f"❌ FAILURE: Delivery #{delivery.id} (Item: '{delivery.item}') to destination '{delivery.destination}' failed. Reason: {reason}")
+            await self.handle_failed_arrival(delivery, reason=reason)
 
     async def handle_successful_arrival(self, delivery: models.Delivery):
         db: Session = SessionLocal()
