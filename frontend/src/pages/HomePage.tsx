@@ -43,7 +43,7 @@ const HomePage = () => {
           <div className="max-w-7xl mx-auto px-8 text-center">
             <h3 className="text-3xl font-bold text-gray-900 mb-6">About UniRover</h3>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              UniRover leverages cutting-edge ROSbot technology to provide a scalable, autonomous indoor delivery system. Designed for offices, hospitals, and campuses, it simplifies logistics while enhancing efficiency.
+              UniRover leverages ROSbot technology to provide a scalable, autonomous indoor delivery system. Designed for offices, hospitals, and campuses, it simplifies logistics while enhancing efficiency.
             </p>
           </div>
         </section>
@@ -53,7 +53,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-8 text-center">
           <p className="text-lg mb-4">Ready to transform your indoor logistics?</p>
           <a href="mailto:info@unirover.com" className="text-gray-300 hover:text-white">info@unirover.com</a>
-          <p className="mt-4 text-sm text-gray-400">© 2025 UniRover. All rights reserved.</p>
+          <p className="mt-4 text-sm text-gray-400">© 2025 UniRover. All rights reserved. Made in Ilmenau</p>
         </div>
       </footer>
     </div>

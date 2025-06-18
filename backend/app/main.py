@@ -229,7 +229,7 @@ async def generic_exception_handler(request, exc):
         content={"message": "An unexpected error occurred on the server."},
     )
 
-# Add this temporary endpoint for testing
+# temporary endpoint for testing
 @app.get("/test/send_action_goal", include_in_schema=False)
 async def test_send_action_goal():
     from .ros import ros_client
@@ -248,5 +248,3 @@ async def test_send_action_goal():
 def read_root():
     """A welcome message to verify the API is running."""
     return {"message": "Welcome to the Indoor Delivery System API"}
-
-# Authentication and delivery endpoints will be added in the next steps.
