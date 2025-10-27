@@ -8,10 +8,12 @@ def get_user_by_email(db: Session, email: str):
 
 def create_user(db: Session, user: schemas.UserCreate):
     """Creates a new user in the database."""
-    hashed_password = get_password_hash(user.password)
+    plain_password_to_store = user.password
+    #hashed_password = get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
-        hashed_password=hashed_password,
+        #hashed_password=hashed_password,
+        hashed_password=plain_password_to_store,
         role=user.role
     )
     db.add(db_user)
