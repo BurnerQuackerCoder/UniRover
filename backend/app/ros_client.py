@@ -114,6 +114,11 @@ class ROSClient(Node):
 
     async def send_goal_action(self, goal_pose: dict) -> str:
         """Sends a navigation goal using the NavigateToPose action client."""
+
+        server_ready = self._nav_action_client.server_is_ready()
+        logger.info(f"send_goal_action: Checking status. self.is_ready={self.is_ready}, server_is_ready()={server_ready}")
+
+
         if not self.is_ready or not self._nav_action_client.server_is_ready():
              logger.error("Cannot send goal: Node not spinning or action server not ready.")
              raise ConnectionError("ROS 2 node or action server not ready.")
@@ -145,10 +150,13 @@ class ROSClient(Node):
 
         # Wait for the server to accept the goal
         try:
-            goal_handle = await asyncio.wrap_future(send_goal_future)
+            #goal_handle = await asyncio.wrap_future(send_goal_future)
+            goal_handle = await send_goal_future
         except Exception as e:
-            logger.error(f"Error sending goal: {e}", exc_info=True)
-            raise ConnectionError(f"Failed to send goal to action server: {e}")
+            #logger.error(f"Error sending goal: {e}", exc_info=True)
+            logger.error(f"Error awaiting goal acceptance: {e}", exc_info=True)
+            raise ConnectionError(f"Failed to get goal handle from action server: {e}")
+            #raise ConnectionError(f"Failed to send goal to action server: {e}")
 
         if not goal_handle.accepted:
             logger.error(f"Goal {goal_id_str} rejected by server.")
@@ -171,7 +179,8 @@ class ROSClient(Node):
         get_result_future = goal_handle.get_result_async()
         try:
             # Wait for the result with a timeout
-            result_wrapper = await asyncio.wait_for(asyncio.wrap_future(get_result_future), timeout=timeout)
+            #result_wrapper = await asyncio.wait_for(asyncio.wrap_future(get_result_future), timeout=timeout)
+            result_wrapper = await asyncio.wait_for(get_result_future, timeout=timeout)
             status = result_wrapper.status
             # result = result_wrapper.result # The actual result message (NavigateToPose.Result)
 
@@ -222,7 +231,8 @@ class ROSClient(Node):
                   cancel_future = goal_handle.cancel_goal_async()
                   try:
                       # Wait briefly for acknowledgement, but don't block forever
-                      await asyncio.wait_for(asyncio.wrap_future(cancel_future), timeout=2.0)
+                      #wait asyncio.wait_for(asyncio.wrap_future(cancel_future), timeout=2.0)
+                      await asyncio.wait_for(cancel_future, timeout=2.0)
                       logger.info(f"Cancel request for goal {goal_id} sent.")
                   except asyncio.TimeoutError:
                       logger.warning(f"Timeout waiting for cancel confirmation for goal {goal_id}.")
@@ -253,9 +263,9 @@ class ROSClient(Node):
 # --- Global instance ---
 # We initialize rclpy externally (in main.py lifespan) before creating this instance.
 # If rclpy isn't initialized, creating the node will fail.
-ros_client: Optional[ROSClient] = None
+#ros_client: Optional[ROSClient] = None
 
-def initialize_ros_client():
+'''def initialize_ros_client():
     """Initializes the global ros_client instance."""
     global ros_client
     if ros_client is None:
@@ -265,6 +275,6 @@ def initialize_ros_client():
              rclpy.init()
              logger.warning("rclpy initialized within initialize_ros_client. Should be done in lifespan.")
         ros_client = ROSClient()
-    return ros_client
+    return ros_client'''
 
 # Note: The actual instantiation and spinning will happen in main.py

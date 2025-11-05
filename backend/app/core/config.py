@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     ROSBRIDGE_URL: str = "ws://localhost:9090" # IMPORTANT: Change this IP
     ROS_BATTERY_TOPIC: str = "/battery"
     BATTERY_MIN_LEVEL: float = 20.0 # Minimum battery percentage to start a tour
-    DELIVERY_BATCH_SIZE: int = 3 # Number of pending deliveries to trigger a tour
+    DELIVERY_BATCH_SIZE: int = 1 # Number of pending deliveries to trigger a tour
     ENFORCE_BATTERY_CHECK: bool = False # << Set to False to disable battery check
+
+    NAVIGATION_TIMEOUT_SECONDS: float = 180.0 # Timeout for waiting for Nav2 goal result (3 minutes)
+    PICKUP_TIMEOUT_SECONDS: float = 60.0 # Timeout for user pickup confirmation (1 minute)
+    RETURN_TO_BASE_TIMEOUT_SECONDS: float = 300.0 # Timeout for returning to base (5 minutes)
 
     # Development Settings
     SIMULATION_MODE: bool = False # Set to False when you want to use the real robot
