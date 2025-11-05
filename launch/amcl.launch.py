@@ -16,7 +16,7 @@ def generate_launch_description():
 
     map_file_arg = DeclareLaunchArgument(
         "map_file",
-        default_value=PathJoinSubstitution([FindPackageShare("tutorial_pkg"), "maps", "map.yaml"]),
+        default_value=PathJoinSubstitution([FindPackageShare("tutorial_pkg"), "maps", "labroom.yaml"]),
         description="Full path to the yaml map file",
     )
 
