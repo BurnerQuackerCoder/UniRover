@@ -417,5 +417,5 @@ async def websocket_proxy(frontend_ws: WebSocket):
     def read_root():
         """Provides a simple welcome message to verify the API is running."""
         return {"message": "Welcome to the UniRover Indoor Delivery API"}
-    # --- End Root Endpoint ---
+    # ---_ End Root Endpoint _---
 
