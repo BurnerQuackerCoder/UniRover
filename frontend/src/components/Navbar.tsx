@@ -10,7 +10,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link to="/" className="text-2xl font-bold text-blue-600">
-              UniRover
+              Zuse-Opta
             </Link>
           </div>
           <div className="flex items-center space-x-4">

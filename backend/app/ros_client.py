@@ -14,6 +14,7 @@ from nav2_msgs.action import NavigateToPose
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import BatteryState # Import BatteryState message
 from action_msgs.msg import GoalStatus as RosGoalStatus
+from std_msgs.msg import String
 
 # Assume euler_to_quaternion exists (or define it)
 def euler_to_quaternion(theta: float) -> Dict[str, float]:
@@ -67,6 +68,15 @@ class ROSClient(Node):
         )
         logger.info("Subscribed to /battery_state")
 
+        # --- 2. ADD THE NEW AUDIO PUBLISHER ---
+        self.audio_publisher = self.create_publisher(
+            String,
+            '/play_audio',
+            10  # QoS depth
+        )
+        logger.info("Created publisher for /play_audio.")
+        # --- END OF NEW CODE ---
+
         # Flag to indicate connection readiness (node is spinning)
         self.is_ready = False
         self._spin_thread = None
@@ -93,6 +103,22 @@ class ROSClient(Node):
             # Maybe use voltage and design voltage? Depends on the specific message content.
             # logger.warning("Received BatteryState message without 'percentage' field.")
             pass # Keep previous value for now
+            
+    # --- 3. ADD THE NEW HELPER FUNCTION ---
+    def publish_audio_command(self, text_to_speak: str):
+        """Publishes a text string to the /play_audio topic."""
+        if not self.is_ready:
+            self.get_logger().warning("ROS node not ready, cannot publish audio command.")
+            return
+
+        try:
+            msg = String()
+            msg.data = text_to_speak
+            self.audio_publisher.publish(msg)
+            self.get_logger().info(f"Published audio command: '{text_to_speak}'")
+        except Exception as e:
+            self.get_logger().error(f"Failed to publish audio command: {e}")
+    # --- END OF NEW CODE ---
 
     async def connect(self) -> bool:
         """
@@ -185,7 +211,8 @@ class ROSClient(Node):
             # result = result_wrapper.result # The actual result message (NavigateToPose.Result)
 
             # Clean up the completed goal
-            del self.active_goals[goal_id_str]
+            #del self.active_goals[goal_id_str]
+            self.active_goals.pop(goal_id_str, None) # Safely remove the key if it exists
 
             if status == RosGoalStatus.STATUS_SUCCEEDED:
                 logger.info(f"Goal {goal_id_str} succeeded.")

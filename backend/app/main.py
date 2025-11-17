@@ -309,6 +309,56 @@ async def command_return_to_base(
     return {"message": "Command received: Aborting tour and returning to base initiated."}
 # --- End Delivery Endpoints ---
 
+# --- Public Kiosk Endpoints ---
+
+@deliveries_router.get("/public/deliveries/{destination_name}", response_model=list[schemas.DeliveryInDB])
+def read_public_deliveries_for_destination(destination_name: str, db: Session = Depends(get_db)):
+    """
+    Public endpoint for kiosks.
+    Gets all deliveries for a specific destination that are AWAITING_PICKUP.
+    """
+    logger.info(f"Public kiosk polling for destination: {destination_name}")
+    # This is a new CRUD function we will need to create
+    return crud.get_deliveries_by_destination_and_status(
+        db,
+        destination=destination_name,
+        status=models.DeliveryStatus.AWAITING_PICKUP
+    )
+
+@deliveries_router.post("/public/confirm_pickup/{delivery_id}", status_code=status.HTTP_200_OK)
+def public_confirm_pickup(delivery_id: int, db: Session = Depends(get_db)):
+    """
+    Public endpoint for kiosks to confirm pickup without login.
+    """
+    logger.info(f"Public kiosk confirming pickup for delivery: {delivery_id}")
+
+    # Check if this delivery is actually awaiting pickup
+    delivery = db.query(models.Delivery).filter(
+        models.Delivery.id == delivery_id,
+        models.Delivery.status == models.DeliveryStatus.AWAITING_PICKUP
+    ).first()
+
+    if not delivery:
+        logger.warning(f"Public confirm pickup failed: Delivery {delivery_id} not found or not Awaiting Pickup.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Delivery not found or not currently awaiting pickup."
+        )
+
+    if delivery_id in pickup_confirmation_events:
+        pickup_confirmation_events[delivery_id].set()
+        logger.info(f"Public pickup confirmed event set for delivery {delivery_id}")
+        return {"message": "Pickup confirmed successfully."}
+    else:
+        # This case is strange (DB says AWAITING_PICKUP but no event exists)
+        # This could happen if the server restarted. We should just mark it as Delivered.
+        logger.warning(f"Public pickup for {delivery_id} had no event. Forcing status to Delivered.")
+        crud.update_delivery_status_in_db(db, delivery_id=delivery_id, new_status=models.DeliveryStatus.DELIVERED)
+        return {"message": "Pickup confirmed (forced)."}
+
+# --- End Public Kiosk Endpoints ---
+
+
 
 # Include routers in the main app
 app.include_router(auth_router)

@@ -1,19 +1,19 @@
 from sqlalchemy.orm import Session
 from . import models, schemas
-from .auth import get_password_hash # Import the real function
+from .auth import get_password_hash
 
 def get_user_by_email(db: Session, email: str):
     """Fetches a user from the database by their email address."""
     return db.query(models.User).filter(models.User.email == email).first()
 
 def create_user(db: Session, user: schemas.UserCreate):
-    """Creates a new user in the database with a hashed password."""
-    # Use the real hashing function
-    hashed_password = get_password_hash(user.password) 
-
+    """Creates a new user in the database."""
+    plain_password_to_store = user.password
+    #hashed_password = get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
-        hashed_password=hashed_password, # Store the hash
+        #hashed_password=hashed_password,
+        hashed_password=plain_password_to_store,
         role=user.role
     )
     db.add(db_user)
@@ -29,6 +29,7 @@ def get_all_deliveries(db: Session, skip: int = 0, limit: int = 100):
     """Fetches all deliveries in the database (for admins)."""
     return db.query(models.Delivery).offset(skip).limit(limit).all()
 
+# --- THIS IS THE NEW FUNCTION YOU ARE ADDING ---
 def get_deliveries_by_destination_and_status(db: Session, destination: str, status: models.DeliveryStatus):
     """
     Fetches all deliveries for a specific destination with a specific status.
@@ -38,6 +39,7 @@ def get_deliveries_by_destination_and_status(db: Session, destination: str, stat
         models.Delivery.destination == destination,
         models.Delivery.status == status
     ).all()
+# --- END OF NEW FUNCTION ---
 
 def create_user_delivery(db: Session, delivery: schemas.DeliveryCreate, user_id: int):
     """Creates a new delivery for a specific user."""
@@ -73,24 +75,10 @@ def reset_deliveries_status(db: Session, delivery_ids: list[int]):
     """Resets the status of a list of deliveries back to Pending."""
     if not delivery_ids:
         return 0
-
+        
     updated_count = db.query(models.Delivery).\
         filter(models.Delivery.id.in_(delivery_ids)).\
         update({"status": models.DeliveryStatus.PENDING}, synchronize_session=False)
-
-    db.commit()
-    return updated_count
-
-
-
-def fail_deliveries_status(db: Session, delivery_ids: list[int]):
-    """Resets the status of a list of deliveries to Failed."""
-    if not delivery_ids:
-        return 0
-
-    updated_count = db.query(models.Delivery).\
-        filter(models.Delivery.id.in_(delivery_ids)).\
-        update({"status": models.DeliveryStatus.FAILED}, synchronize_session=False)
-
+    
     db.commit()
     return updated_count

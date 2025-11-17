@@ -7,6 +7,7 @@ import SignupPage from './pages/SignupPage';
 import UserDashboardPage from './pages/UserDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import StationPage from './pages/StationPage';
 
 function App() {
   return (
@@ -28,6 +29,10 @@ function App() {
             <Route path="admin/dashboard" element={<AdminDashboardPage />} />
           </Route>
         </Route>
+        {/* --- 2. ADD THE NEW PUBLIC KIOSK ROUTE --- */}
+        {/* This route is public and does NOT use the main Layout */}
+        <Route path="/station/:destinationName" element={<StationPage />}  />
+        {/* --- END OF NEW ROUTE --- */}
       </Routes>
     </AuthProvider>
   );

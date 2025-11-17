@@ -36,7 +36,7 @@ watchfiles==1.0.5
 websockets==15.0.1
 sqlalchemy
 python-jose[cryptography]
-passlib[bcrypt]
+passlib[bcrypt]==1.7.4
 pydantic_settings
 python-tsp
 websockets

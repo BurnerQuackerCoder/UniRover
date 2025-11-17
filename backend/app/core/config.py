@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     ROSBRIDGE_URL: str = "ws://localhost:9090" # IMPORTANT: Change this IP
     ROS_BATTERY_TOPIC: str = "/battery"
     BATTERY_MIN_LEVEL: float = 20.0 # Minimum battery percentage to start a tour
-    DELIVERY_BATCH_SIZE: int = 1 # Number of pending deliveries to trigger a tour
+    DELIVERY_BATCH_SIZE: int = 3 # Number of pending deliveries to trigger a tour
     ENFORCE_BATTERY_CHECK: bool = False # << Set to False to disable battery check
 
     NAVIGATION_TIMEOUT_SECONDS: float = 180.0 # Timeout for waiting for Nav2 goal result (3 minutes)

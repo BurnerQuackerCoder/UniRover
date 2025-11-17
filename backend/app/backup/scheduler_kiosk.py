@@ -189,14 +189,12 @@ class Scheduler:
             logger.error(f"❌ FAILURE: Navigation goal for delivery #{delivery.id} (Item: '{delivery.item}') to '{delivery.destination}' failed. Reason: {reason}")
             await self.handle_failed_arrival(delivery, reason=reason)
 
-    # --- *** THIS FUNCTION IS NOW MODIFIED *** ---
     async def handle_successful_arrival(self, delivery: models.Delivery):
         if self.abort_flag and self.abort_flag.is_set():
              logger.warning(f"Abort detected upon arrival at {delivery.destination}. Skipping pickup wait.")
              return 
 
         logger.info(f"Arrived at {delivery.destination} for delivery #{delivery.id}. Awaiting pickup confirmation ({settings.PICKUP_TIMEOUT_SECONDS}s).")
-
         db: Session = SessionLocal()
         try:
             crud.update_delivery_status_in_db(db, delivery_id=delivery.id, new_status=models.DeliveryStatus.AWAITING_PICKUP)
@@ -206,39 +204,12 @@ class Scheduler:
         pickup_event = asyncio.Event()
         pickup_confirmation_events[delivery.id] = pickup_event
 
-        # --- NEW AUDIO LOOP LOGIC ---
-        audio_task = None
-        if self.ros_client:
-            speak_text = f"Delivery has arrived at {delivery.destination}. Please collect your item."
-
-            async def play_audio_loop():
-                """Internal task to play audio on a loop."""
-                # TODO: Make this 15.0 second interval configurable in config.py
-                audio_interval = 15.0 
-                try:
-                    while not pickup_event.is_set() and not (self.abort_flag and self.abort_flag.is_set()):
-                        logger.info(f"Playing arrival audio: '{speak_text}'")
-                        self.ros_client.publish_audio_command(speak_text)
-                        # Wait for the interval, but check for the event frequently
-                        await asyncio.wait_for(pickup_event.wait(), timeout=audio_interval)
-                except asyncio.TimeoutError:
-                    pass # This is expected, just means the interval passed
-                except asyncio.CancelledError:
-                    logger.info("Audio loop cancelled.")
-                except Exception as e:
-                    logger.error(f"Error in audio loop: {e}", exc_info=True)
-
-            audio_task = asyncio.create_task(play_audio_loop())
-        # --- END NEW AUDIO LOOP LOGIC ---
-
         try:
-            # Wait for the pickup event to be set (by the API)
             await asyncio.wait_for(pickup_event.wait(), timeout=settings.PICKUP_TIMEOUT_SECONDS)
 
-            # --- Pickup was confirmed ---
             if self.abort_flag and self.abort_flag.is_set():
                  logger.warning(f"Abort detected after pickup confirmation for delivery {delivery.id}. Not marking as Delivered.")
-                 return # Abort logic will handle it
+                 return
 
             logger.info(f"Pickup confirmed for delivery #{delivery.id}.")
             db_session = SessionLocal()
@@ -247,28 +218,19 @@ class Scheduler:
             finally:
                 db_session.close()
 
-            # Move to the next item in the tour
             self.current_tour_index += 1
             await self.execute_next_goal_in_tour()
 
         except asyncio.TimeoutError:
-            # --- Pickup timed out ---
             if self.abort_flag and self.abort_flag.is_set():
                  logger.warning(f"Abort detected after pickup timeout for delivery {delivery.id}.")
-                 return # Abort logic will handle it
+                 return
 
             logger.warning(f"Pickup confirmation timed out for delivery #{delivery.id}. Marking as Failed.")
-            # Treat this as a failed delivery step
             await self.handle_failed_arrival(delivery, reason="Pickup Timeout")
 
         finally:
-            # --- This block runs on success OR timeout ---
-            # Stop the audio loop
-            if audio_task:
-                audio_task.cancel()
-            # Clean up the event
             pickup_confirmation_events.pop(delivery.id, None)
-    # --- *** END OF MODIFIED FUNCTION *** ---
 
 
     async def handle_failed_arrival(self, delivery: models.Delivery, reason="Unknown"):
@@ -323,27 +285,22 @@ class Scheduler:
 
         logger.info("Finished tour cleanup. Scheduler is now idle.")
 
-# 0000000000000000000000000000000000000000000000000000000000000
 
     async def abort_tour_and_return_to_base(self):
         """
-        Aborts active tour, marks all active deliveries as FAILED,
-        and calls finish_tour to return home.
+        Aborts active tour, resets DB, and calls finish_tour to return home.
         """
         logger.warning("!!! ABORTING CURRENT TOUR - Emergency Return to Base Command Received !!!")
 
-        if not self.is_executing_tour:
-            logger.warning("Abort command received, but no tour is currently executing. Sending to base anyway.")
-            # Fall through to the cleanup/reset function
-
         if self.abort_flag:
             if self.abort_flag.is_set():
-                logger.warning("Abort already in progress.")
-                return
+                 logger.warning("Abort already in progress.")
+                 return
             self.abort_flag.set()
             logger.info("Abort flag set.")
         else:
-            logger.error("Cannot abort: Abort flag was not initialized.")
+             logger.error("Cannot abort: Abort flag was not initialized.")
+             # We should still try to reset the DB and go home
 
         # 1. Cancel active ROS goal
         if self.ros_client:
@@ -354,10 +311,10 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"Error sending cancel command while aborting: {e}", exc_info=True)
         else:
-            logger.warning("Cannot cancel ROS goals: ROS client is not available.")
+             logger.warning("Cannot cancel ROS goals: ROS client is not available.")
 
         # 2. Reset status of deliveries in DB
-        logger.info("Marking all active deliveries as FAILED...")
+        logger.info("Resetting status of active deliveries in database...")
         db: Session = SessionLocal()
         try:
             deliveries_to_reset = db.query(models.Delivery).filter(
@@ -368,42 +325,40 @@ class Scheduler:
                 ])
             ).all()
 
-            delivery_ids_to_fail = [d.id for d in deliveries_to_reset]
+            delivery_ids_to_reset = [d.id for d in deliveries_to_reset]
 
-            if delivery_ids_to_fail:
-                logger.info(f"Found active deliveries to mark as FAILED: {delivery_ids_to_fail}")
-                # --- THIS IS THE LOGIC CHANGE ---
-                # Call the new function instead of reset_deliveries_status
-                count = crud.fail_deliveries_status(db, delivery_ids=delivery_ids_to_fail)
-                # --- END LOGIC CHANGE ---
-                logger.info(f"Successfully marked {count} deliveries as FAILED.")
+            if delivery_ids_to_reset:
+                logger.info(f"Found active deliveries to reset to Pending: {delivery_ids_to_reset}")
+                count = crud.reset_deliveries_status(db, delivery_ids=delivery_ids_to_reset)
+                logger.info(f"Successfully reset status for {count} deliveries.")
             else:
-                logger.info("No active deliveries found in the database to mark as Failed.")
+                logger.info("No active deliveries found in the database to reset.")
         except Exception as e:
-            logger.error(f"Error failing delivery statuses during abort: {e}", exc_info=True)
+             logger.error(f"Error resetting delivery statuses during abort: {e}", exc_info=True)
         finally:
             db.close()
 
         # 3. Clear any pending pickup events
         for event in pickup_confirmation_events.values():
-            event.set() # Wake up any waiting tasks so they see the abort flag
+             event.set()
         pickup_confirmation_events.clear()
         logger.info("Cleared pending pickup confirmation events.")
 
-        # --- ADD THIS DELAY ---
-        logger.info("Waiting 2 seconds for Nav2 to stabilize after cancel...")
-        await asyncio.sleep(3.0) # Give Nav2 2 seconds to finish canceling
-        # --- END OF ADDITION ---
+        # --- *** THE FIX IS HERE *** ---
+        # DO NOT reset the scheduler state here.
+        # We are still "executing" the abort/return-to-base task.
+        # self.is_executing_tour = False # <--- REMOVED
+        # self.current_tour = [] # <--- REMOVED
+        # self.current_tour_index = -1 # <--- REMOVED
 
-        # 4. Call finish_tour. This will return the robot to base
-        #    AND release the scheduler lock. The loop won't restart
-        #    because there are no new "Pending" deliveries.
-        logger.info("Abort steps complete. Returning to base and resetting state...")
+        # 4. Call finish_tour. This function will now handle returning the
+        #    robot AND THEN setting is_executing_tour to False.
+        logger.info("Calling finish_tour to return to base and reset state...")
         await self.finish_tour()
 
         logger.warning("!!! Abort Tour and Return to Base sequence complete. !!!")
 
-#00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
     def start(self, room_coords: dict, ros_client_instance: Optional[ROSClient]):
         if self._is_running:
              logger.warning("Scheduler start called, but it's already running.")
