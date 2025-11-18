@@ -53,10 +53,10 @@ Follow these steps in order to get the system running.
 ### Part 1: Robot Setup (On the Raspberry Pi)
 
 **1. Access the Robot:**
-SSH into your robot's Raspberry Pi.
+SSH into your robot's Raspberry Pi. 'ssh -Y husarion@192.168.0.105'
 
 **2. Time Synchronization (Critical):**
-Install `ntp` for date sync. Nav2 will fail if clocks drift. Always connect internet before beginning.
+Install `ntp` for date sync. Nav2 will fail if clocks drift. 'Always connect internet before beginning'.
 
 
 **3. Start the ROS 2 Container: Launch the Docker container with access to hardware (sound, USB):**
@@ -113,9 +113,7 @@ This starts the brain of the robot (Mapping, Localization, Path Planning).
 Bash
 
 # Inside ROS 2 Docker
-ros2 launch nav2_bringup bringup_launch.py map:=/path/to/your/map.yaml
-
-Wait ~20 seconds for "Ready for navigation" message.
+ros2 launch tutorial_pkg navigation.launch.py
 
 Terminal 2: Rosbridge Server (PC - ROS 2 Container)
 
@@ -140,7 +138,7 @@ This serves the web interface.
 Bash
 
 # Inside frontend directory
-npm run dev
+npm run dev -- --host 0.0.0.0
 
 Terminal 5: Robot Audio (Robot - Pi Container)
 
@@ -148,7 +146,7 @@ This listens for audio commands.
 Bash
 
 # Inside Robot Docker
-python3 path/to/audio_player_node.py
+python3 root/ws/audio_player_node.py
 
 📖 User Guide
 
@@ -166,13 +164,12 @@ python3 path/to/audio_player_node.py
 
 2. Receiving a Delivery (Kiosk Mode)
 
-    On a tablet at the destination (e.g., "Lab A"), open: http://localhost:5173/station/Lab A
-
+    On a tablet at the destination (e.g., "Lab A"), open: http://localhost:5173/station/1001
     When the robot arrives:
 
         The screen will show the delivery.
 
-        The robot will announce: "Delivery has arrived at Lab A."
+        The robot will announce: "Delivery has arrived at 1001."
 
     Click "Confirm Pickup" to release the robot.
 
@@ -208,12 +205,12 @@ Settings (backend/app/core/config.py)
 
 🔧 Troubleshooting
 
-Issue	Solution
-Map not loading	Ensure rosbridge_server is running. Perform a Hard Refresh (Ctrl+Shift+R) in the browser.
-Robot "Zigzags"	Reduce controller_frequency in navigation.yaml to 1.0 Hz. Set expected_planner_frequency to 0.0.
-Navigation Fails Immediately	Check time sync. Run chronyc sources on the robot. If not synced (*), restart chrony.
-"Action Server Not Ready"	Restart Nav2 first, wait 20s, then restart the Backend (uvicorn).
-Audio not playing	Ensure the robot Docker container was run with --device=/dev/snd and --privileged.
+Issue	Solution \
+Map not loading	Ensure rosbridge_server is running. Perform a Hard Refresh (Ctrl+Shift+R) in the browser.\
+Robot "Zigzags", control problem, need to fix urdf file (robot description)\
+Navigation Fails Immediately	Check time sync.\
+"Action Server Not Ready"	Restart Nav2 first, wait 20s, then restart the Backend (uvicorn).\
+Audio not playing	Ensure the robot Docker container was run with --device=/dev/snd and --privileged.\
 
 📜 License
 
