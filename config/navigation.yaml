@@ -134,7 +134,7 @@ controller_server:
   ros__parameters:
     use_sim_time: False
 
-    controller_frequency: 5.0
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.03
     min_y_velocity_threshold: 0.03
     min_theta_velocity_threshold: 0.3
@@ -159,7 +159,7 @@ controller_server:
 
       # Velocity/accelaration limits also have to be adjusted in the velocity smoother
       desired_linear_vel: 0.4
-      lookahead_dist: 0.6
+      lookahead_dist: 0.75
       min_lookahead_dist: 0.4
       max_lookahead_dist: 0.9
       lookahead_time: 2.0
@@ -202,7 +202,7 @@ local_costmap:
 
       width: 3
       height: 3
-      resolution: 0.03
+      resolution: 0.04
       rolling_window: True
       always_send_full_costmap: True
 
@@ -214,7 +214,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: True
-        inflation_radius: 0.10
+        inflation_radius: 0.20
         cost_scaling_factor: 4.0
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -252,9 +252,9 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
 
-      resolution: 0.05
+      resolution: 0.04
       always_send_full_costmap: True
-      track_unknown_space: True
+      track_unknown_space: False
 
       # robot_radius: 0.23
       footprint: "[[0.14, 0.14], [0.14, -0.14], [-0.14, -0.14], [-0.14, 0.14]]"
@@ -264,7 +264,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: True
-        inflation_radius: 0.10
+        inflation_radius: 0.20
         cost_scaling_factor: 4.0
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -295,7 +295,7 @@ global_costmap:
 map_server:
   ros__parameters:
     use_sim_time: False
-    yaml_filename: "map.yaml"
+    yaml_filename: "dadar.yaml"
 
 map_saver:
   ros__parameters:
@@ -308,7 +308,7 @@ map_saver:
 planner_server:
   ros__parameters:
     use_sim_time: False
-    expected_planner_frequency: 1.0
+    expected_planner_frequency: 0.0
 
     planner_plugins: ["GridBased"]
     GridBased:

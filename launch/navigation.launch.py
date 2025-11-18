@@ -17,7 +17,7 @@ def generate_launch_description():
 
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
-        default_value=PathJoinSubstitution([tutorial_dir, 'maps', 'map.yaml']),
+        default_value=PathJoinSubstitution([tutorial_dir, 'maps', 'dadar.yaml']),
         description='Full path to map yaml file to load',
     )
 
