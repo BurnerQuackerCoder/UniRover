@@ -1,3 +1,4 @@
+CUstom Global Planner: https://github.com/BurnerQuackerCoder/energyawarepathplannerROS/tree/master
 # Zuse-Opta 🤖📦
 
 **An Autonomous Indoor Delivery System powered by ROS 2, FastAPI, and React.**
