@@ -1,4 +1,4 @@
-CUstom Global Planner: https://github.com/BurnerQuackerCoder/energyawarepathplannerROS/tree/master
+Custom Global Planner: https://github.com/BurnerQuackerCoder/energyawarepathplannerROS/tree/master
 # Zuse-Opta 🤖📦
 
 **An Autonomous Indoor Delivery System powered by ROS 2, FastAPI, and React.**
@@ -18,6 +18,12 @@ Zuse-Opta is a full-stack robotic application designed to manage indoor logistic
 * **Secure:** User authentication with JWT and secure password hashing (bcrypt).
 
 ---
+## Screenshots
+<img width="400" height="320" alt="System Design" src="https://github.com/user-attachments/assets/92f53dcd-61a6-43b9-b1a3-d3c57e42c660" />
+<img width="400" height="320" alt="dashboard_screenshot" src="https://github.com/user-attachments/assets/ea723ebc-2f29-407c-a633-c2bf05fc830e" />
+<img width="400" height="320" alt="kiosk_ui" src="https://github.com/user-attachments/assets/bf791276-401c-4695-8162-439c213f0ed8" />
+<img width="400" height="320" alt="tsp_0" src="https://github.com/user-attachments/assets/b23dd0f1-7148-4062-8fc4-57479eab75ff" />
+
 
 ## 🏗️ System Architecture
 
